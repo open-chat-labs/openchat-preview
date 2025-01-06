@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  spotify:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    container_name: openchat-preview
+    environment:
+      - PORT=5070
+    ports:
+      - 5070:5070
