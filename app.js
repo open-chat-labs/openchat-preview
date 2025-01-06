@@ -43,12 +43,16 @@ app.get("/preview", async (req, res) => {
         .json({ error: "Failed to fetch the requested URL" });
     }
 
+    const cacheControl =
+      response.headers.get("cache-control") || "public, max-age=3600";
+
     const $ = cheerio.load(html);
     const metadata = {
       title: $('meta[property="og:title"]').attr("content") || null,
       description: $('meta[property="og:description"]').attr("content") || null,
       image: $('meta[property="og:image"]').attr("content") || null,
     };
+    res.set("Cache-Control", cacheControl);
     res.json(metadata);
   } catch (error) {
     console.error("Error fetching the URL:", error);
