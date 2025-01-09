@@ -31,6 +31,24 @@ app.get("/preview", async (req, res) => {
   }
 
   try {
+    const callerOrigin = req.headers.origin || req.headers.referer;
+    if (callerOrigin) {
+      try {
+        const callerUrl = new URL(callerOrigin);
+        const targetUrl = new URL(url);
+
+        // if the origins match then this is an OC url for which we cannot return meaningful meta data
+        if (callerUrl.origin === targetUrl.origin) {
+          return res.status(404).json({
+            error:
+              "We cannot return meaningful metadata for internal links (yet)",
+          });
+        }
+      } catch (error) {
+        console.warn("Failed to parse URL for origin check:", error);
+      }
+    }
+
     const cachedMetadata = cache.get(url);
     if (cachedMetadata) {
       console.log("Returning OpenGraph metadata from cache for ", url);
