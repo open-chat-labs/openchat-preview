@@ -1,7 +1,9 @@
 const express = require("express");
 const cors = require("cors");
-const cheerio = require("cheerio");
 const app = express();
+const ogpParser = require("ogp-parser");
+const NodeCache = require("node-cache");
+const cache = new NodeCache({ stdTTL: 3600 });
 
 const whitelist = [
   "http://localhost:5001",
@@ -25,38 +27,37 @@ app.get("/preview", async (req, res) => {
   const url = req.query.url;
 
   if (!url) {
-    return res.status(400).json({ error: 'Missing "url" query parameter' });
+    return res.status(400).json({ error: "URL parameter is required" });
   }
 
   try {
-    const response = await fetch(url);
-    const html = await response.text();
-
-    if (!response.ok) {
-      console.error(
-        `Error fetching the url: ${url}`,
-        response.status,
-        response.statusText
-      );
-      return res
-        .status(response.status)
-        .json({ error: "Failed to fetch the requested URL" });
+    const cachedMetadata = cache.get(url);
+    if (cachedMetadata) {
+      console.log("Returning OpenGraph metadata from cache for ", url);
+      res.set("Cache-Control", "public, max-age=3600");
+      return res.json(cachedMetadata);
+    }
+    const metadata = await ogpParser(url);
+    if (!metadata) {
+      console.log("OpenGraph metadata not found", url);
+      return res.status(404).json({ error: "OpenGraph metadata not found" });
     }
 
-    const cacheControl =
-      response.headers.get("cache-control") || "public, max-age=3600";
-
-    const $ = cheerio.load(html);
-    const metadata = {
-      title: $('meta[property="og:title"]').attr("content") || null,
-      description: $('meta[property="og:description"]').attr("content") || null,
-      image: $('meta[property="og:image"]').attr("content") || null,
+    const data = {
+      title: metadata.title,
+      description: metadata.ogp["og:description"],
+      image: metadata.ogp["og:image"],
+      imageAlt: metadata.ogp["og:image:alt"],
     };
-    res.set("Cache-Control", cacheControl);
-    res.json(metadata);
+
+    cache.set(url, data);
+    res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
+    return res.json(data);
   } catch (error) {
-    console.error("Error fetching the URL:", error);
-    res.status(500).json({ error: "Failed to fetch metadata" });
+    console.error("Error getting OpenGraph metadata", url, error);
+    return res
+      .status(500)
+      .json({ error: `Error getting OpenGraph metadata for ${url}` });
   }
 });
 
