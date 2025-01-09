@@ -39,9 +39,10 @@ app.get("/preview", async (req, res) => {
 
         // if the origins match then this is an OC url for which we cannot return meaningful meta data
         if (callerUrl.origin === targetUrl.origin) {
+          const msg = `We cannot return meaningful metadata for internal links (yet): ${url}`;
+          console.log(msg);
           return res.status(404).json({
-            error:
-              "We cannot return meaningful metadata for internal links (yet)",
+            error: msg,
           });
         }
       } catch (error) {
