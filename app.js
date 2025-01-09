@@ -2,8 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const ogpParser = require("ogp-parser");
-const NodeCache = require("node-cache");
-const cache = new NodeCache({ stdTTL: 3600 });
+const { LRUCache } = require("lru-cache");
+const { URL } = require("url");
 
 const whitelist = [
   "http://localhost:5001",
@@ -11,6 +11,14 @@ const whitelist = [
   "https://test.oc.app",
   "https://webtest.oc.app",
 ];
+
+// Create an LRU cache with a max size of 10000 items or 1 GB
+const cache = new LRUCache({
+  max: 10000,
+  maxSize: 1000 * 1024 * 1024,
+  sizeCalculation: (value, key) => JSON.stringify(value).length + key.length,
+  ttl: 3600 * 1000, // 1 hour
+});
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -40,7 +48,7 @@ app.get("/preview", async (req, res) => {
         // if the origins match then this is an OC url for which we cannot return meaningful meta data
         if (callerUrl.origin === targetUrl.origin) {
           const msg = `We cannot return meaningful metadata for internal links (yet): ${url}`;
-          console.log(msg);
+          console.warn(msg);
           return res.status(404).json({
             error: msg,
           });
@@ -50,12 +58,13 @@ app.get("/preview", async (req, res) => {
       }
     }
 
-    const cachedMetadata = cache.get(url);
-    if (cachedMetadata) {
+    const cachedData = cache.get(url);
+    if (cachedData) {
       console.log("Returning OpenGraph metadata from cache for ", url);
       res.set("Cache-Control", "public, max-age=3600");
-      return res.json(cachedMetadata);
+      return res.json(cachedData);
     }
+
     const metadata = await ogpParser(url);
     if (!metadata) {
       console.log("OpenGraph metadata not found", url);
