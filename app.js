@@ -14,8 +14,8 @@ const whitelist = [
 
 // Create an LRU cache with a max size of 10000 items or 1 GB
 const cache = new LRUCache({
-  max: 10000,
-  maxSize: 1000 * 1024 * 1024,
+  max: 5000,
+  maxSize: 500 * 1024 * 1024,
   sizeCalculation: (value, key) => JSON.stringify(value).length + key.length,
   ttl: 3600 * 1000, // 1 hour
 });
@@ -88,5 +88,21 @@ app.get("/preview", async (req, res) => {
       .json({ error: `Error getting OpenGraph metadata for ${url}` });
   }
 });
+
+// Let's see if we can spot what's happening with the memory
+setInterval(() => {
+  try {
+    const used = process.memoryUsage();
+    console.log(
+      `Heap: ${(used.heapUsed / 1024 / 1024).toFixed(2)} MB / ${(
+        used.heapTotal /
+        1024 /
+        1024
+      ).toFixed(2)} MB`
+    );
+  } catch (err) {
+    console.error(err);
+  }
+}, 60000); // Every minute
 
 module.exports = app;

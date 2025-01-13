@@ -11,4 +11,4 @@ COPY . .
 
 EXPOSE 5070
 
-CMD [ "node", "server.js" ]
+CMD ["node", "--max-old-space-size=4096", "server.js"]
