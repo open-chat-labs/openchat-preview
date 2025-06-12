@@ -55,6 +55,12 @@ app.get("/preview", async (req, res) => {
         const callerUrl = new URL(callerOrigin);
         const targetUrl = new URL(url);
 
+        if (targetUrl.protocol !== "https:") {
+          return res
+            .status(400)
+            .json({ error: "Only HTTPS URLs are supported" });
+        }
+
         // if the origins match then this is an OC url for which we cannot return meaningful meta data
         if (callerUrl.origin === targetUrl.origin) {
           const msg = `We cannot return meaningful metadata for internal links (yet): ${url}`;
