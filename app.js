@@ -30,6 +30,16 @@ const corsOptions = {
   },
 };
 
+const badResponse = { badResponse: true };
+
+const withTimeout = (promise, ms) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout")), ms)
+    ),
+  ]);
+
 app.use(cors(corsOptions));
 app.get("/preview", async (req, res) => {
   const url = req.query.url;
@@ -55,19 +65,28 @@ app.get("/preview", async (req, res) => {
         }
       } catch (error) {
         console.warn("Failed to parse URL for origin check:", error);
+        return res
+          .status(400)
+          .json({ error: "Failed to parse URL for origin check:" });
       }
     }
 
     const cachedData = cache.get(url);
+
+    if (cachedData?.badResponse) {
+      return res.status(404).json({ error: "OpenGraph metadata not found" });
+    }
+
     if (cachedData) {
-      console.log("Returning OpenGraph metadata from cache for ", url);
+      console.debug("Returning OpenGraph metadata from cache for ", url);
       res.set("Cache-Control", "public, max-age=3600");
       return res.json(cachedData);
     }
 
-    const metadata = await ogpParser(url);
+    const metadata = await withTimeout(ogpParser(url), 5000);
     if (!metadata) {
-      console.log("OpenGraph metadata not found", url);
+      cache.set(url, badResponse);
+      console.debug("OpenGraph metadata not found", url);
       return res.status(404).json({ error: "OpenGraph metadata not found" });
     }
 
@@ -83,6 +102,7 @@ app.get("/preview", async (req, res) => {
     return res.json(data);
   } catch (error) {
     console.error("Error getting OpenGraph metadata", url, error);
+    cache.set(url, badResponse);
     return res
       .status(500)
       .json({ error: `Error getting OpenGraph metadata for ${url}` });
@@ -93,7 +113,7 @@ app.get("/preview", async (req, res) => {
 setInterval(() => {
   try {
     const used = process.memoryUsage();
-    console.log(
+    console.debug(
       `Heap: ${(used.heapUsed / 1024 / 1024).toFixed(2)} MB / ${(
         used.heapTotal /
         1024 /
